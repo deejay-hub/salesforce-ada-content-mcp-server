@@ -1,0 +1,36 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: salesforce-content-mcp-db
+    environment:
+      POSTGRES_DB: mcp_docs
+      POSTGRES_USER: mcp
+      POSTGRES_PASSWORD: mcp
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcp -d mcp_docs"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  server:
+    build: .
+    image: salesforce-content-mcp-server
+    container_name: salesforce-content-mcp-server
+    platform: linux/amd64
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://mcp:mcp@db:5432/mcp_docs
+      PORT: "3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+volumes:
+  pgdata:
