@@ -19,7 +19,7 @@
 
 > **Disclaimer:** This is a community project and not an official Salesforce product. It is not supported, endorsed, or maintained by Salesforce.
 
-Pre-loaded with 79,000+ chunks across developer guides, MuleSoft docs, Marketing Cloud docs, release notes, blogs, videos, and code samples. No API keys, no crawling, no configuration — just `docker compose up`.
+Pre-loaded with 87,000+ chunks across developer guides, MuleSoft docs, Marketing Cloud docs, release notes, blogs, videos, and code samples. No API keys, no crawling, no configuration — just `docker compose up`.
 
 Supports **Claude Code**, **Cursor**, **Windsurf**, and any MCP-compatible client.
 
@@ -103,11 +103,11 @@ AI Agent → MCP Protocol → Express Server → Hybrid Search → PostgreSQL + 
 
 ### Content Included
 
-- **Developer Guides** — Apex, LWC, Agentforce, REST API, Bulk API, Data Cloud, Platform Events, Mobile SDK, and more
+- **Developer Guides** — Apex, LWC, Agentforce, Agentforce Vibes, Agentforce Mobile SDK, REST API, Bulk API, Data Cloud, Platform Events, Mobile SDK, and more
 - **MuleSoft** — Full documentation set (51,000+ chunks)
 - **Marketing Cloud** — Growth, Engagement APIs, AMPscript, Account Engagement
-- **Architect** — Blog posts and YouTube content
-- **Release Notes** — Current release notes with AI-generated summaries
+- **Architect** — Decision guides, Well-Architected, fundamentals, reference diagrams, blog posts and YouTube content
+- **Release Notes** — Winter '27 and Summer '26 release notes with AI-generated summaries
 - **Blogs & Videos** — Last year of Developer, Admin, and Architect content
 - **Code Samples** — Verified working code from trailheadapps and forcedotcom GitHub orgs
 
@@ -123,7 +123,37 @@ docker compose down -v
 
 ### Refreshing the Data
 
-The seed data is a point-in-time snapshot. To update from a production database:
+The seed data is a point-in-time snapshot, but you can refresh it from the live Salesforce sites at any time:
+
+```bash
+npm install
+npm run refresh            # or: ./scripts/refresh-content.sh
+docker compose down -v
+docker compose up --build
+```
+
+This rewrites the seed files in `db/init/` and is safe to re-run — each step either adds only what's new or fully replaces its slice of the data:
+
+| Step | What it does |
+|------|--------------|
+| `blogs` | Adds new Developer, Admin, and Architect blog posts and Salesforce Developers / Architects / Admins YouTube videos (from transcripts), and drops blog/video content older than one year |
+| `release-notes` | Detects the latest release on help.salesforce.com and replaces that release's notes. Generates the 30 role-based summaries used by `summarize_release` only when the release doesn't have any yet |
+| `decision-guides` | Replaces the architect.salesforce.com decision guides |
+| `dev-guides` | Replaces the Apex, LWC, Agentforce, Agentforce Vibes, and Agentforce Mobile SDK developer guides, following the live doc version |
+
+**Requirements:** Node 20+, Python 3, [yt-dlp](https://github.com/yt-dlp/yt-dlp) (for videos), and the [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) logged in (only when release summaries are generated). A full run takes 1–2 hours, mostly polite page-by-page fetching.
+
+Run just some steps, or force new release summaries:
+
+```bash
+./scripts/refresh-content.sh --only blogs                       # weekly blogs + videos top-up
+./scripts/refresh-content.sh --only release-notes,dev-guides    # after a new release
+./scripts/refresh-content.sh --only release-notes --resummarize
+```
+
+Commit the updated `db/init/` files to share the refresh. The individual ingest scripts in `scripts/` (`ingest-latest.ts`, `ingest-release-notes.ts`, `ingest-architect-decision-guides.ts`, `ingest-dev-guides.ts`, `merge-seed.py`) can also be run on their own — see the usage notes at the top of each.
+
+To update from a production database instead:
 
 ```bash
 DATABASE_URL=postgres://... ./scripts/export-from-production.sh
@@ -135,7 +165,7 @@ docker compose up
 
 #### Is this kept up to date?
 
-The documentation content is a point-in-time snapshot from May 2026. This project is primarily an example of what can be done with a self-hosted documentation MCP server and may not be actively maintained or refreshed with new content.
+The documentation content is a point-in-time snapshot. Blogs, videos, Winter '27 release notes, the architect decision guides, and the Apex, LWC, Agentforce, Agentforce Vibes, and Agentforce Mobile SDK developer guides were refreshed in October 2026; the remaining content is from May 2026. This project is primarily an example of what can be done with a self-hosted documentation MCP server and may not be actively maintained or refreshed with new content.
 
 #### Why hybrid search instead of just embeddings?
 
@@ -144,6 +174,17 @@ Pure semantic search misses exact API names, governor limit numbers, and config 
 #### Can I use this without Docker?
 
 Yes. Run PostgreSQL with pgvector yourself, point `DATABASE_URL` at it, import the seed data, and start the server with `npm start`. Docker just wraps this for convenience.
+
+#### Port 5432 is already in use
+
+If you already run PostgreSQL locally, `docker compose up` fails with `bind: address already in use`. Pick another host port for the database by adding it to a `.env` file next to `docker-compose.yml`, then recreate the containers:
+
+```bash
+echo "DB_PORT=5433" >> .env
+docker compose up -d --force-recreate
+```
+
+The MCP server talks to the database inside Docker, so its endpoint doesn't change. If you run the server without Docker, use the same port in `DATABASE_URL`.
 
 #### Server keeps restarting on first boot
 

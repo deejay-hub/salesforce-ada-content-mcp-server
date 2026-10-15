@@ -8,7 +8,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server/index.js",
-    "dev": "tsx src/server/index.ts"
+    "dev": "tsx src/server/index.ts",
+    "ingest:latest": "tsx scripts/ingest-latest.ts --out /tmp/new-chunks.csv && python3 scripts/merge-seed.py /tmp/new-chunks.csv",
+    "refresh": "bash scripts/refresh-content.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
